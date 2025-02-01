@@ -79,3 +79,8 @@ This project uses the **WanAndroid API**, no additional setup required.
 - ✅ **Article Favorites** - Save/remove articles from favorites  
 - ✅ **Offline Caching** - Store articles using Room  
 - ✅ **Dark Mode Support**  
+
+## 💡 TODO  
+
+- 🔲 **Add PullToRefreash**  
+- 🔲 **Article details page**  
