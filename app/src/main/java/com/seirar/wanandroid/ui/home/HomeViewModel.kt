@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -29,14 +30,21 @@ class HomeViewModel @Inject constructor(
     private fun initialData() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                repository.getCachedArticles().collect{ cached ->
-                    _articles.value = cached
-                }
+                val cached = repository.getCachedArticles().firstOrNull()
 
-                val freshData = repository.fetchArticle(0)
-                currentPage = 0
-                isEndReached = false
-                _articles.value = freshData
+                if (cached.isNullOrEmpty()) {
+                    val freshData = repository.fetchArticle(0)
+                    currentPage = 0
+                    isEndReached = false
+                    _articles.value = freshData
+                } else {
+                    _articles.value = cached
+
+                    val freshData = repository.fetchArticle(0)
+                    currentPage = 0
+                    isEndReached = false
+                    _articles.value = freshData
+                }
             } catch (e: Exception) {
                 e.message?.let { Log.d("ViewModel", it) }
             }
