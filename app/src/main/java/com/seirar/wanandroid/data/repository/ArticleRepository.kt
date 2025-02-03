@@ -1,6 +1,8 @@
 package com.seirar.wanandroid.data.repository
 
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import com.seirar.wanandroid.data.database.ArticleDao
 import com.seirar.wanandroid.domain.model.article.Article
 import com.seirar.wanandroid.domain.model.article.ArticleApiService
@@ -10,6 +12,7 @@ import com.seirar.wanandroid.domain.model.article.toEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.io.IOException
+import java.time.LocalDateTime
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,10 +25,19 @@ class ArticleRepository @Inject constructor(
         val response = apiService.getArticles(page = page)
         if (response.errorCode == 0) {
             val article = response.data.datas.map { it.toDomainModel() }
-            articleDao.insertAll(article.map { it.toEntity()})
+
+            if (page == 0) {
+                articleDao.updateArticlesTransaction(article.map { it.toEntity() })
+            }
+
             return article
         }
         throw ApiException(response.errorCode, response.errorMsg)
+    }
+
+    suspend fun clearOldCache() {
+        val oneWeekAgo = LocalDateTime.now().minusWeeks(1).toString()
+        articleDao.deleteOldArticles(oneWeekAgo)
     }
 
     fun getCachedArticles(): Flow<List<Article>> {

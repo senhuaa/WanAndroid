@@ -1,6 +1,8 @@
 package com.seirar.wanandroid.ui.home
 
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.seirar.wanandroid.data.repository.ArticleRepository
@@ -9,7 +11,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -20,8 +22,12 @@ class HomeViewModel @Inject constructor(
     private val _articles = MutableStateFlow<List<Article>>(emptyList())
     val articles = _articles.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
+
     private var currentPage = 0
     private var isEndReached = false
+    private var isPaginateLoading = false
 
     init {
         initialData()
@@ -30,40 +36,48 @@ class HomeViewModel @Inject constructor(
     private fun initialData() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val cached = repository.getCachedArticles().firstOrNull()
+                repository.getCachedArticles()
+                    .take(1)
+                    .collect { cached ->
+                        if (cached.isNotEmpty()) {
+                            _articles.value = cached
+                        }
+                    }
 
-                if (cached.isNullOrEmpty()) {
-                    val freshData = repository.fetchArticle(0)
-                    currentPage = 0
-                    isEndReached = false
-                    _articles.value = freshData
-                } else {
-                    _articles.value = cached
+                repository.clearOldCache()
 
-                    val freshData = repository.fetchArticle(0)
-                    currentPage = 0
-                    isEndReached = false
-                    _articles.value = freshData
-                }
+                _isRefreshing.value = true
+                val freshData = repository.fetchArticle(0)
+
+                currentPage = 0
+                _articles.value = freshData
             } catch (e: Exception) {
                 e.message?.let { Log.d("ViewModel", it) }
+            } finally {
+                _isRefreshing.value = false
             }
         }
     }
 
     fun loadMoreData() {
-        if (isEndReached) return
+        if (isEndReached || isPaginateLoading) return
 
-        viewModelScope.launch {
+        isPaginateLoading = true
+
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-
                 val newData = repository.fetchArticle(currentPage + 1)
-                currentPage++
-                isEndReached = newData.isEmpty()
-
-                _articles.value += newData
+                if (newData.isNotEmpty()) {
+                    currentPage++
+                    _articles.value += newData
+                    Log.d("ViewModel", currentPage.toString())
+                } else {
+                    isEndReached = true
+                }
             } catch (e: Exception) {
-                e.message?.let { Log.d("ViewModel", it) }
+                e.message?.let { Log.d("ViewModel", "loadMoreData: $it") }
+            } finally {
+                isPaginateLoading = false
             }
         }
     }

@@ -4,9 +4,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
-import androidx.navigation.navDeepLink
 import androidx.navigation.navigation
-import kotlinx.serialization.Serializable
 
 const val homeNavigationGraph = "homeGraph/"
 const val homeNavigationRoute = "home/"

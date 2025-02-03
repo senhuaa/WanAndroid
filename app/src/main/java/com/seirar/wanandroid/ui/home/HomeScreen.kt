@@ -1,12 +1,14 @@
 package com.seirar.wanandroid.ui.home
 
 import android.annotation.SuppressLint
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
@@ -25,14 +28,19 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,15 +51,34 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.seirar.wanandroid.domain.model.article.Article
 import com.seirar.wanandroid.ui.components.WanTopBar
+import kotlinx.coroutines.flow.distinctUntilChanged
 
+@SuppressLint("UnrememberedMutableState")
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val article by viewModel.articles.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
 
-    LaunchedEffect(article) {
-        Log.d("Compose", "UI received $article articles")
+    val pullToRefreshState = rememberPullToRefreshState()
+    val lazyListState = rememberLazyListState()
+
+    LaunchedEffect(lazyListState) {
+        snapshotFlow {
+            val layoutInfo = lazyListState.layoutInfo
+            val totalItems = layoutInfo.totalItemsCount
+            val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+
+            lastVisibleItem >= totalItems - 2
+        }
+            .distinctUntilChanged()
+            .collect { shouldLoad ->
+                if (shouldLoad) {
+                    viewModel.loadMoreData()
+                }
+            }
     }
 
     Scaffold(
@@ -60,11 +87,36 @@ fun HomeScreen(
             WanTopBar()
         }
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(paddingValues)
-        ){
-            items(article) { item ->
-                ArticleItem(article = item)
+        PullToRefreshBox(
+            modifier = Modifier.padding(paddingValues),
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.refreshData() },
+            state = pullToRefreshState,
+            indicator = {
+                PullToRefreshDefaults.Indicator(
+                    state = pullToRefreshState,
+                    isRefreshing = isRefreshing,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
+            }
+        ) {
+            LazyColumn(
+                state = lazyListState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 80.dp)
+            ) {
+                items(
+                    items = article,
+                    key = { it.id }
+                ) { item ->
+                    ArticleItem(item)
+                }
+
+                item {
+                    LaunchedEffect(Unit) {
+                        Log.d("HomeScreen", "Reached last item, triggering load more")
+                    }
+                }
             }
         }
     }
