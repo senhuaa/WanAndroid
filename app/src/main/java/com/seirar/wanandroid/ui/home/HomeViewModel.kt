@@ -1,8 +1,6 @@
 package com.seirar.wanandroid.ui.home
 
-import android.os.Build
 import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.seirar.wanandroid.data.repository.ArticleRepository

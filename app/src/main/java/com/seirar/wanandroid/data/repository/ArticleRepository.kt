@@ -1,12 +1,8 @@
 package com.seirar.wanandroid.data.repository
 
-import android.os.Build
-import android.util.Log
-import androidx.annotation.RequiresApi
 import com.seirar.wanandroid.data.database.ArticleDao
 import com.seirar.wanandroid.domain.model.article.Article
 import com.seirar.wanandroid.domain.model.article.ArticleApiService
-import com.seirar.wanandroid.domain.model.article.ArticleEntity
 import com.seirar.wanandroid.domain.model.article.toDomainModel
 import com.seirar.wanandroid.domain.model.article.toEntity
 import kotlinx.coroutines.flow.Flow
