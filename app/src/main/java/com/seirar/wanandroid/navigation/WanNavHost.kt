@@ -1,5 +1,6 @@
 package com.seirar.wanandroid.navigation
 
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
@@ -11,10 +12,10 @@ import com.seirar.wanandroid.ui.project.projectGraph
 @Composable
 fun WanNavHost(
     appState: MainAppState,
+    snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
     startDestination: String = homeNavigationGraph
 ) {
-
     val navController = appState.navController
 
     NavHost(
@@ -22,7 +23,9 @@ fun WanNavHost(
         startDestination = startDestination,
         modifier = modifier
     ) {
-        homeGraph()
+        homeGraph(
+            snackbarHostState = snackbarHostState
+        )
         projectGraph()
     }
 

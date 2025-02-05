@@ -1,87 +1,163 @@
 package com.seirar.wanandroid.ui.home
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.seirar.wanandroid.data.repository.ArticleRepository
 import com.seirar.wanandroid.domain.model.article.Article
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: ArticleRepository
 ) : ViewModel() {
-    private val _articles = MutableStateFlow<List<Article>>(emptyList())
-    val articles = _articles.asStateFlow()
+    private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
+    val uiState = _uiState.asStateFlow()
 
-    private val _isRefreshing = MutableStateFlow(false)
-    val isRefreshing = _isRefreshing.asStateFlow()
+    private val _uiEvent = Channel<HomeUiEvent>(Channel.BUFFERED)
+    val uiEvent = _uiEvent.receiveAsFlow()
 
     private var currentPage = 0
-    private var isEndReached = false
-    private var isPaginateLoading = false
 
     init {
         initialData()
     }
 
     private fun initialData() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             try {
-                repository.getCachedArticles()
-                    .take(1)
-                    .collect { cached ->
-                        if (cached.isNotEmpty()) {
-                            _articles.value = cached
+                withContext(Dispatchers.IO){
+                    repository.getCachedArticles()
+                        .take(1)
+                        .collect { cached ->
+                            if (cached.isNotEmpty()){
+                                _uiState.value = HomeUiState.Success(
+                                    articles = cached,
+                                    isRefreshing = true
+                                )
+                            }
                         }
-                    }
+                    repository.clearOldCache()
+                }
 
-                repository.clearOldCache()
-
-                _isRefreshing.value = true
-                val freshData = repository.fetchArticle(0)
+                val freshData = withContext(Dispatchers.IO) {
+                    repository.fetchArticle(0)
+                }
 
                 currentPage = 0
-                _articles.value = freshData
+                _uiState.value = HomeUiState.Success(articles = freshData)
+
+                withContext(Dispatchers.Main){
+                    _uiEvent.send(HomeUiEvent.ScrollToTop)
+                }
             } catch (e: Exception) {
-                e.message?.let { Log.d("ViewModel", it) }
-            } finally {
-                _isRefreshing.value = false
+                val currentState = _uiState.value
+                if (currentState is HomeUiState.Success) {
+                    _uiState.value = currentState.copy(isRefreshing = false)
+
+                    withContext(Dispatchers.Main) {
+                        _uiEvent.send(
+                            HomeUiEvent.ShowSnackbar(
+                                message = e.message ?: "Unknown error occurred"
+                            )
+                        )
+                    }
+                }
             }
         }
     }
 
     fun loadMoreData() {
-        if (isEndReached || isPaginateLoading) return
-
-        isPaginateLoading = true
+        val currentState = _uiState.value as? HomeUiState.Success ?: return
+        if (currentState.isPaginateLoading || currentState.hasReachedEnd) return
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                _uiState.value = currentState.copy(isPaginateLoading = true)
+
                 val newData = repository.fetchArticle(currentPage + 1)
                 if (newData.isNotEmpty()) {
                     currentPage++
-                    _articles.value += newData
-                    Log.d("ViewModel", currentPage.toString())
+                    _uiState.value = currentState.copy(
+                        articles = currentState.articles + newData,
+                        isPaginateLoading = false
+                    )
                 } else {
-                    isEndReached = true
+                    _uiState.value = currentState.copy(
+                        isPaginateLoading = false,
+                        hasReachedEnd = true
+                    )
                 }
             } catch (e: Exception) {
-                e.message?.let { Log.d("ViewModel", "loadMoreData: $it") }
-            } finally {
-                isPaginateLoading = false
+                _uiState.value = currentState.copy(
+                    isPaginateLoading = false,
+                )
+
+                withContext(Dispatchers.Main) {
+                    _uiEvent.send(
+                        HomeUiEvent.ShowSnackbar(
+                            message = e.message ?: "Failed to load"
+                        )
+                    )
+                }
             }
         }
     }
 
     fun refreshData() {
-        initialData()
-    }
+        val currentState = _uiState.value as? HomeUiState.Success ?: return
 
+        viewModelScope.launch {
+            try {
+                _uiState.value = currentState.copy(isRefreshing = true)
+                currentPage = 0
+
+                val freshData = repository.fetchArticle(0)
+                _uiState.value = HomeUiState.Success(
+                    articles = freshData,
+                    isRefreshing = false,
+                    hasReachedEnd = false
+                )
+
+                withContext(Dispatchers.Main){
+                    _uiEvent.send(HomeUiEvent.ScrollToTop)
+                }
+            } catch (e: Exception) {
+                _uiState.value = currentState.copy(
+                    isRefreshing = false,
+                )
+
+                withContext(Dispatchers.Main){
+                    _uiEvent.send(
+                        HomeUiEvent.ShowSnackbar(
+                            message = e.message ?: "Failed to refresh"
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+sealed interface HomeUiState{
+    data object Loading: HomeUiState
+    data class Success(
+        val articles: List<Article>,
+        val isRefreshing: Boolean = false,
+        val isPaginateLoading: Boolean = false,
+        val hasReachedEnd: Boolean = false,
+    ): HomeUiState
+}
+
+sealed interface HomeUiEvent {
+    data object ScrollToTop : HomeUiEvent
+    data class ShowSnackbar(val message: String) : HomeUiEvent
 }

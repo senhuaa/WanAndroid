@@ -1,5 +1,6 @@
 package com.seirar.wanandroid.ui.home
 
+import androidx.compose.material3.SnackbarHostState
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
@@ -12,7 +13,7 @@ const val homeNavigationRoute = "home/"
 fun NavController.navigateToHome(navOptions: NavOptions) = navigate(route = homeNavigationRoute, navOptions)
 
 
-fun NavGraphBuilder.homeGraph() {
+fun NavGraphBuilder.homeGraph(snackbarHostState: SnackbarHostState) {
     navigation(
         route = homeNavigationGraph,
         startDestination = homeNavigationRoute
@@ -20,7 +21,9 @@ fun NavGraphBuilder.homeGraph() {
         composable(
             route = homeNavigationRoute
         ) {
-            HomeScreen()
+            HomeScreen(
+                snackbarHostState = snackbarHostState
+            )
         }
     }
 }
