@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import com.seirar.wanandroid.MainAppState
+import com.seirar.wanandroid.ui.components.webviewGraph
 import com.seirar.wanandroid.ui.home.homeGraph
 import com.seirar.wanandroid.ui.home.homeNavigationGraph
 import com.seirar.wanandroid.ui.project.projectGraph
@@ -24,9 +25,10 @@ fun WanNavHost(
         modifier = modifier
     ) {
         homeGraph(
-            snackbarHostState = snackbarHostState
+            snackbarHostState = snackbarHostState,
+            navController = navController
         )
         projectGraph()
+        webviewGraph(navController)
     }
-
 }

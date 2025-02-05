@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,7 +26,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,11 +36,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
 import com.seirar.wanandroid.domain.model.article.Article
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -59,7 +60,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
-    snackbarHostState: SnackbarHostState
+    snackbarHostState: SnackbarHostState,
+    navController: NavController
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val pullToRefreshState = rememberPullToRefreshState()
@@ -123,38 +125,61 @@ fun HomeScreen(
             is HomeUiState.Success -> {
                 val state = uiState as HomeUiState.Success
 
-                PullToRefreshBox(
-                    modifier = Modifier.padding(paddingValues),
-                    isRefreshing = state.isRefreshing,
-                    onRefresh = { viewModel.refreshData() },
-                    state = pullToRefreshState,
-                    indicator = {
-                        PullToRefreshDefaults.Indicator(
-                            state = pullToRefreshState,
-                            isRefreshing = state.isRefreshing,
-                            modifier = Modifier.align(Alignment.TopCenter)
-                        )
-                    }
-                ) {
-                    LazyColumn(
-                        state = lazyListState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 80.dp)
-                    ) {
-                        items(
-                            items = state.articles,
-                            key = { it.id }
-                        ) { item ->
-                            ArticleItem(item)
-                        }
+                HomeList(
+                    state = state,
+                    pullToRefreshState = pullToRefreshState,
+                    lazyListState = lazyListState,
+                    viewModel = viewModel,
+                    paddingValues = paddingValues,
+                    navController = navController
+                )
+            }
+        }
+    }
+}
 
-                        if (!state.hasReachedEnd) {
-                            item {
-                                if (state.isPaginateLoading) {
-                                    LoadingItem()
-                                }
-                            }
-                        }
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeList(
+    state: HomeUiState.Success,
+    pullToRefreshState: PullToRefreshState,
+    lazyListState: LazyListState,
+    viewModel: HomeViewModel,
+    paddingValues: PaddingValues,
+    navController: NavController
+) {
+    PullToRefreshBox(
+        modifier = Modifier.padding(paddingValues),
+        isRefreshing = state.isRefreshing,
+        onRefresh = { viewModel.refreshData() },
+        state = pullToRefreshState,
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                state = pullToRefreshState,
+                isRefreshing = state.isRefreshing,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+        }
+    ) {
+        LazyColumn(
+            state = lazyListState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 80.dp)
+        ) {
+            items(
+                items = state.articles,
+                key = { it.id }
+            ) { item ->
+                ArticleItem(
+                    article = item,
+                    onClick = { navController.navigate("webview?url=${item.url}&title=${item.title}") }
+                )
+            }
+
+            if (!state.hasReachedEnd) {
+                item {
+                    if (state.isPaginateLoading) {
+                        LoadingItem()
                     }
                 }
             }
@@ -163,7 +188,10 @@ fun HomeScreen(
 }
 
 @Composable
-fun ArticleItem(article: Article) {
+fun ArticleItem(
+    article: Article,
+    onClick: (String) -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -171,13 +199,12 @@ fun ArticleItem(article: Article) {
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(4.dp),
         onClick = {
-
+            onClick(article.url)
         }
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            // 标题
             Text(
                 text = article.title,
                 style = MaterialTheme.typography.titleMedium,
@@ -187,7 +214,6 @@ fun ArticleItem(article: Article) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 作者 & 日期
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -206,13 +232,11 @@ fun ArticleItem(article: Article) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 分类 & 收藏
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // 文章分类
                 Text(
                     text = article.category,
                     fontSize = 12.sp,
@@ -222,7 +246,6 @@ fun ArticleItem(article: Article) {
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
 
-                // 收藏按钮
                 IconButton(
                     onClick = {}
                 ) {
@@ -246,33 +269,5 @@ private fun LoadingItem() {
         contentAlignment = Alignment.Center
     ) {
         CircularProgressIndicator()
-    }
-}
-
-@Composable
-private fun ErrorItem(message: String) {
-    Text(
-        text = message,
-        color = MaterialTheme.colorScheme.error,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-    )
-}
-
-@Composable
-private fun ErrorView(message: String?, onRetry: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .wrapContentSize(Alignment.Center),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(text = message ?: "Unknown error", color = MaterialTheme.colorScheme.error)
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = onRetry) {
-            Text("Retry")
-        }
     }
 }

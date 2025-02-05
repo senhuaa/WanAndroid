@@ -13,7 +13,10 @@ const val homeNavigationRoute = "home/"
 fun NavController.navigateToHome(navOptions: NavOptions) = navigate(route = homeNavigationRoute, navOptions)
 
 
-fun NavGraphBuilder.homeGraph(snackbarHostState: SnackbarHostState) {
+fun NavGraphBuilder.homeGraph(
+    snackbarHostState: SnackbarHostState,
+    navController: NavController
+) {
     navigation(
         route = homeNavigationGraph,
         startDestination = homeNavigationRoute
@@ -22,7 +25,8 @@ fun NavGraphBuilder.homeGraph(snackbarHostState: SnackbarHostState) {
             route = homeNavigationRoute
         ) {
             HomeScreen(
-                snackbarHostState = snackbarHostState
+                snackbarHostState = snackbarHostState,
+                navController = navController
             )
         }
     }

@@ -31,14 +31,16 @@ fun MainApp(
 
     Scaffold(
         bottomBar = {
-            WanBottomBar(
-                destinations = appState.topLevelDestination,
-                onNavigateToDestination = appState::navigateToTopLevelDestination,
-                currentDestination = appState.currentDestination,
-                modifier = Modifier.testTag("WanBottomBar")
-            )
+            if (appState.shouldShowBottomBar) {
+                WanBottomBar(
+                    destinations = appState.topLevelDestination,
+                    onNavigateToDestination = appState::navigateToTopLevelDestination,
+                    currentDestination = appState.currentDestination,
+                    modifier = Modifier.testTag("WanBottomBar")
+                )
+            }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) {
         WanNavHost(
             appState = appState,

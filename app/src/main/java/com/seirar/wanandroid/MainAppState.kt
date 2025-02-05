@@ -38,7 +38,7 @@ class MainAppState(
         }
 
     val shouldShowBottomBar: Boolean
-        @Composable get() = currentDestination != null
+        @Composable get() = currentDestination?.route?.startsWith("webview") == false
 
     val topLevelDestination: List<TopLevelDestination> = TopLevelDestination.entries
 
